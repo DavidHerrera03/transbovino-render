@@ -8,8 +8,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import Base, engine, SessionLocal
+
+# Importar modelos para que SQLAlchemy conozca las tablas
+from models import usuario, bovino, bovino_movimiento, finca, solicitud, vehiculo, viaje
+
 from routers.auth import router as auth_router
-from routers import admin, bovino, solicitud, transportador, usuario, vehiculo, finca
+from routers import admin, bovino as bovino_router, solicitud as solicitud_router
+from routers import transportador, usuario as usuario_router, vehiculo as vehiculo_router, finca as finca_router
+
 from utils.db_schema import ensure_operational_schema
 
 app = FastAPI(title="TransBovino API")
@@ -28,8 +34,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-def iniciar_base_datos():
+
+def crear_tablas():
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
@@ -38,13 +44,25 @@ def iniciar_base_datos():
     finally:
         db.close()
 
+
+@app.on_event("startup")
+def iniciar_base_datos():
+    crear_tablas()
+
+
+@app.get("/setup-db")
+def setup_db():
+    crear_tablas()
+    return {"mensaje": "Tablas creadas correctamente"}
+
+
 app.include_router(auth_router)
-app.include_router(bovino.router)
-app.include_router(usuario.router)
-app.include_router(vehiculo.router)
-app.include_router(solicitud.router)
+app.include_router(bovino_router.router)
+app.include_router(usuario_router.router)
+app.include_router(vehiculo_router.router)
+app.include_router(solicitud_router.router)
 app.include_router(transportador.router)
-app.include_router(finca.router)
+app.include_router(finca_router.router)
 app.include_router(admin.router)
 
 
