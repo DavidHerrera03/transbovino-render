@@ -9,12 +9,25 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import Base, engine, SessionLocal
 
-# Importar modelos para que SQLAlchemy conozca las tablas
-from models import usuario, bovino, bovino_movimiento, finca, solicitud, vehiculo, viaje
+# Importar modelos para que SQLAlchemy conozca todas las tablas
+from models import (
+    usuario,
+    bovino,
+    bovino_movimiento,
+    finca,
+    solicitud,
+    vehiculo,
+    viaje,
+)
 
 from routers.auth import router as auth_router
-from routers import admin, bovino as bovino_router, solicitud as solicitud_router
-from routers import transportador, usuario as usuario_router, vehiculo as vehiculo_router, finca as finca_router
+from routers import admin
+from routers import bovino as bovino_router
+from routers import solicitud as solicitud_router
+from routers import transportador
+from routers import usuario as usuario_router
+from routers import vehiculo as vehiculo_router
+from routers import finca as finca_router
 
 from utils.db_schema import ensure_operational_schema
 
