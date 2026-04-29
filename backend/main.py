@@ -7,8 +7,10 @@ load_project_env()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from database import Base, engine, SessionLocal
 from routers.auth import router as auth_router
 from routers import admin, bovino, solicitud, transportador, usuario, vehiculo, finca
+from utils.db_schema import ensure_operational_schema
 
 app = FastAPI(title="TransBovino API")
 
@@ -25,6 +27,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def iniciar_base_datos():
+    Base.metadata.create_all(bind=engine)
+
+    db = SessionLocal()
+    try:
+        ensure_operational_schema(db)
+    finally:
+        db.close()
 
 app.include_router(auth_router)
 app.include_router(bovino.router)
