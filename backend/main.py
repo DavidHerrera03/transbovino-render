@@ -58,9 +58,9 @@ def crear_tablas():
         db.close()
 
 
-@app.on_event("startup")
-def iniciar_base_datos():
-    crear_tablas()
+@app.get("/")
+def home():
+    return {"mensaje": "API funcionando"}
 
 
 @app.get("/setup-db")
@@ -77,8 +77,3 @@ app.include_router(solicitud_router.router)
 app.include_router(transportador.router)
 app.include_router(finca_router.router)
 app.include_router(admin.router)
-
-
-@app.get("/")
-def home():
-    return {"mensaje": "API funcionando"}
