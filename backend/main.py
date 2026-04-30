@@ -6,6 +6,7 @@ load_project_env()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from database import Base, engine, SessionLocal
 
@@ -67,6 +68,29 @@ def home():
 def setup_db():
     crear_tablas()
     return {"mensaje": "Tablas creadas correctamente"}
+
+
+@app.get("/health-db")
+def health_db():
+    db = SessionLocal()
+    try:
+        result = db.execute(text("SELECT COUNT(*) FROM usuarios"))
+        total_usuarios = result.scalar()
+
+        return {
+            "backend": "ok",
+            "database": "ok",
+            "tabla": "usuarios",
+            "usuarios": total_usuarios,
+        }
+    except Exception as e:
+        return {
+            "backend": "ok",
+            "database": "error",
+            "detalle": str(e),
+        }
+    finally:
+        db.close()
 
 
 app.include_router(auth_router)
