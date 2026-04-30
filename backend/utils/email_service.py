@@ -44,7 +44,7 @@ def get_email_provider_status() -> dict:
         "smtp_host_configurado": bool(smtp_host),
         "smtp_user_configurado": bool(smtp_user),
         "smtp_from_configurado": bool(smtp_from),
-        "codigo": "email_service_resend_v3",
+        "codigo": "email_service_resend_v4",
     }
 
 
@@ -96,6 +96,8 @@ def _send_with_resend(to_email: str, subject: str, html: str) -> None:
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "TransBovino/1.0 (Render; Python urllib)",
         },
         method="POST",
     )
