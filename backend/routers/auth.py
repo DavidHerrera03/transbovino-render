@@ -4,6 +4,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -25,11 +26,6 @@ router = APIRouter(prefix="/auth", tags=["Autenticacion"])
 
 def _hash_reset_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-@router.get("/email-config")
-def email_config():
-    return get_email_provider_status()
 
 
 @router.post("/register")
@@ -93,6 +89,12 @@ def login(datos: LoginRequest, db: Session = Depends(get_db)):
     }
 
 
+
+
+@router.get("/email-config")
+def email_config():
+    return get_email_provider_status()
+
 @router.post("/forgot-password")
 def forgot_password(datos: PasswordResetRequest, db: Session = Depends(get_db)):
     usuario_db = db.query(Usuario).filter(Usuario.correo == datos.correo).first()
@@ -109,7 +111,7 @@ def forgot_password(datos: PasswordResetRequest, db: Session = Depends(get_db)):
     db.add(usuario_db)
     db.commit()
 
-    reset_base_url = os.getenv("RESET_BASE_URL") or os.getenv("FRONTEND_URL", "http://localhost:5173")
+    reset_base_url = os.getenv('RESET_BASE_URL') or os.getenv('FRONTEND_URL', 'http://localhost:5173')
     reset_link = f"{reset_base_url}?vista=restablecer&token={token}"
 
     try:
