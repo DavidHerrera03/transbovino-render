@@ -3,29 +3,48 @@ import TransportadorLayout from "./TransportadorLayout";
 import solicitudesIcon from "../../assets/icons/Solicitudes.png";
 import viajesIcon from "../../assets/icons/Viajes.png";
 import vehiculosIcon from "../../assets/icons/Vehiculos.png";
-import { getMisViajesTransportador } from "../../services/transportadorService";
+import { getDashboardTransportador, getMisViajesTransportador } from "../../services/transportadorService";
 import { getVehiculos } from "../../services/vehiculoService";
 
 function Dashboard({ usuario, salir, setVistaInterna, vistaInterna }) {
   const [loading, setLoading] = useState(false);
   const [viajes, setViajes] = useState([]);
   const [vehiculos, setVehiculos] = useState([]);
+  const [resumenBackend, setResumenBackend] = useState(null);
 
   useEffect(() => {
     const cargar = async () => {
       if (!usuario?.id_usuario) return;
       try {
         setLoading(true);
-        const [dataViajes, dataVehiculos] = await Promise.all([
-          getMisViajesTransportador(usuario.id_usuario),
-          getVehiculos(usuario.id_usuario),
-        ]);
-        setViajes(Array.isArray(dataViajes) ? dataViajes : []);
+
+        // Endpoint optimizado: una sola consulta al backend para el resumen.
+        const dashboard = await getDashboardTransportador(usuario.id_usuario);
+        setResumenBackend(dashboard || null);
+        setViajes(Array.isArray(dashboard?.recientes) ? dashboard.recientes : []);
+
+        // Mantengo esta consulta como respaldo para mostrar cantidad real de vehículos
+        // si el endpoint optimizado no trae el dato por alguna razón.
+        const dataVehiculos = await getVehiculos(usuario.id_usuario).catch(() => []);
         setVehiculos(Array.isArray(dataVehiculos) ? dataVehiculos : []);
       } catch (error) {
         console.error("Error cargando dashboard transportador:", error);
-        setViajes([]);
-        setVehiculos([]);
+
+        // Respaldo: comportamiento anterior.
+        try {
+          const [dataViajes, dataVehiculos] = await Promise.all([
+            getMisViajesTransportador(usuario.id_usuario),
+            getVehiculos(usuario.id_usuario),
+          ]);
+          setViajes(Array.isArray(dataViajes) ? dataViajes : []);
+          setVehiculos(Array.isArray(dataVehiculos) ? dataVehiculos : []);
+          setResumenBackend(null);
+        } catch (fallbackError) {
+          console.error("Error cargando fallback dashboard transportador:", fallbackError);
+          setViajes([]);
+          setVehiculos([]);
+          setResumenBackend(null);
+        }
       } finally {
         setLoading(false);
       }
@@ -35,6 +54,15 @@ function Dashboard({ usuario, salir, setVistaInterna, vistaInterna }) {
   }, [usuario]);
 
   const resumen = useMemo(() => {
+    if (resumenBackend) {
+      return {
+        asignados: Number(resumenBackend.viajes_asignados || 0),
+        enRuta: Number(resumenBackend.en_ruta || 0),
+        completadosMes: Number(resumenBackend.completados || 0),
+        vehiculos: Number(resumenBackend.vehiculos ?? vehiculos.length ?? 0),
+      };
+    }
+
     const asignados = viajes.filter((item) => item.estado === "Asignado").length;
     const enRuta = viajes.filter((item) => item.estado === "En ruta").length;
     const ahora = new Date();
@@ -52,7 +80,7 @@ function Dashboard({ usuario, salir, setVistaInterna, vistaInterna }) {
       completadosMes,
       vehiculos: vehiculos.length,
     };
-  }, [viajes, vehiculos]);
+  }, [viajes, vehiculos, resumenBackend]);
 
   const cards = [
     {
@@ -119,12 +147,9 @@ function Dashboard({ usuario, salir, setVistaInterna, vistaInterna }) {
 
         <div style={styles.tableCard}>
           <div style={styles.tableHeader}>
-            <h2 style={styles.tableTitle}>Mis viajes recientes</h2>
-            <button type="button" style={styles.linkButton} onClick={() => setVistaInterna("misViajes")}>
-              Ver todos
-            </button>
+            <h2 style={styles.sectionTitle}>Mis viajes recientes</h2>
+            <button type="button" style={styles.linkButton} onClick={() => setVistaInterna("misViajes")}>Ver todos</button>
           </div>
-
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
@@ -141,22 +166,20 @@ function Dashboard({ usuario, salir, setVistaInterna, vistaInterna }) {
               <tbody>
                 {recientes.length > 0 ? (
                   recientes.map((item) => (
-                    <tr key={item.id}>
+                    <tr key={item.id || item.id_viaje}>
                       <td style={styles.td}>{item.id_viaje || item.id}</td>
-                      <td style={styles.td}>{item.solicitud_codigo || `SOL-${item.solicitud_id}`}</td>
-                      <td style={styles.td}>{item.origen || "-"}</td>
-                      <td style={styles.td}>{item.destino || "-"}</td>
-                      <td style={styles.td}>
-                        <span style={getStatusStyle(item.estado)}>{item.estado || "Sin estado"}</span>
-                      </td>
+                      <td style={styles.td}>{item.solicitud_codigo || item.solicitud_id || "-"}</td>
+                      <td style={styles.td}>{item.origen}</td>
+                      <td style={styles.td}>{item.destino}</td>
+                      <td style={styles.td}>{item.estado}</td>
                       <td style={styles.td}>{item.fecha || "-"}</td>
-                      <td style={styles.td}>{item.vehiculo_placa || "Sin vehículo"}</td>
+                      <td style={styles.td}>{item.vehiculo_placa || item.id_vehiculo || "Sin vehículo"}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td style={styles.emptyTd} colSpan="7">
-                      {loading ? "Cargando información..." : "No hay viajes registrados todavía."}
+                    <td style={styles.emptyCell} colSpan="7">
+                      {loading ? "Cargando viajes..." : "No hay viajes registrados todavía."}
                     </td>
                   </tr>
                 )}
@@ -169,99 +192,28 @@ function Dashboard({ usuario, salir, setVistaInterna, vistaInterna }) {
   );
 }
 
-const estadoColors = {
-  Asignado: { background: "#ecfccb", color: "#365314" },
-  "En ruta": { background: "#fef3c7", color: "#92400e" },
-  Completado: { background: "#dcfce7", color: "#166534" },
-};
-
-const getStatusStyle = (estado) => ({
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "6px 12px",
-  borderRadius: "999px",
-  background: estadoColors[estado]?.background || "#e2e8f0",
-  color: estadoColors[estado]?.color || "#334155",
-  fontWeight: 700,
-  fontSize: "13px",
-});
-
 const styles = {
-  page: { display: "flex", flexDirection: "column", gap: "22px" },
+  page: { display: "flex", flexDirection: "column", gap: "24px" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center" },
-  title: { margin: 0, color: "#0f172a" },
-  subtitle: { margin: "8px 0 0", color: "#64748b" },
-  cardsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: "18px",
-  },
-  cardButton: {
-    border: "1px solid #e5e7eb",
-    background: "#fff",
-    borderRadius: "18px",
-    padding: "20px",
-    cursor: "pointer",
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-    textAlign: "left",
-    boxShadow: "0 2px 8px rgba(15, 23, 42, 0.05)",
-  },
-  cardTopRow: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" },
-  cardTitle: { color: "#475569", fontSize: "15px", lineHeight: 1.35 },
-  cardValue: { color: "#0f172a", fontSize: "42px", lineHeight: 1 },
-  cardHint: { color: "#64748b", fontSize: "13px" },
-  cardIconWrap: {
-    width: "38px",
-    height: "38px",
-    borderRadius: "12px",
-    background: "#eef3fb",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  cardIcon: {
-    width: "18px",
-    height: "18px",
-    objectFit: "contain",
-  },
-  tableCard: {
-    background: "#fff",
-    borderRadius: "18px",
-    border: "1px solid #e5e7eb",
-    boxShadow: "0 2px 8px rgba(15, 23, 42, 0.05)",
-    overflow: "hidden",
-  },
-  tableHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "20px 22px 0",
-    gap: "16px",
-  },
-  tableTitle: { margin: 0, color: "#0f172a" },
-  linkButton: {
-    border: "none",
-    background: "transparent",
-    color: "#001B5A",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  tableWrapper: { overflowX: "auto", padding: "10px 0 0" },
-  table: { width: "100%", borderCollapse: "collapse", minWidth: "760px" },
-  th: {
-    padding: "16px 22px",
-    color: "#64748b",
-    fontSize: "13px",
-    textTransform: "uppercase",
-    textAlign: "left",
-    borderBottom: "1px solid #e5e7eb",
-    background: "#fafafa",
-  },
-  td: { padding: "16px 22px", color: "#0f172a", borderBottom: "1px solid #eef2f7" },
-  emptyTd: { padding: "36px 22px", textAlign: "center", color: "#64748b" },
+  title: { margin: 0, color: "#0f172a", fontSize: "34px" },
+  subtitle: { color: "#64748b", marginTop: "8px" },
+  cardsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "18px" },
+  cardButton: { border: "1px solid #e2e8f0", background: "#fff", borderRadius: "16px", padding: "22px", textAlign: "left", cursor: "pointer", boxShadow: "0 2px 8px rgba(15,23,42,.05)" },
+  cardTopRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  cardTitle: { color: "#475569", fontSize: "15px" },
+  cardIconWrap: { width: "42px", height: "42px", borderRadius: "14px", background: "#f0f9ff", display: "grid", placeItems: "center" },
+  cardIcon: { width: "22px", height: "22px", objectFit: "contain" },
+  cardValue: { display: "block", fontSize: "42px", color: "#0f172a", marginTop: "22px" },
+  cardHint: { color: "#64748b", marginTop: "12px", display: "block" },
+  tableCard: { background: "#fff", borderRadius: "18px", border: "1px solid #e2e8f0", boxShadow: "0 2px 8px rgba(15,23,42,.05)", overflow: "hidden" },
+  tableHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "22px 26px", borderBottom: "1px solid #e2e8f0" },
+  sectionTitle: { margin: 0, fontSize: "24px", color: "#0f172a" },
+  linkButton: { border: "none", background: "transparent", color: "#075985", fontWeight: 700, cursor: "pointer" },
+  tableWrapper: { overflowX: "auto" },
+  table: { width: "100%", borderCollapse: "collapse" },
+  th: { textAlign: "left", padding: "18px 24px", color: "#64748b", fontSize: "13px", textTransform: "uppercase" },
+  td: { padding: "16px 24px", borderTop: "1px solid #e2e8f0", color: "#334155" },
+  emptyCell: { padding: "34px", textAlign: "center", color: "#64748b", borderTop: "1px solid #e2e8f0" },
 };
 
 export default Dashboard;

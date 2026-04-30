@@ -667,6 +667,8 @@ def listar_viajes_transportador(
     validar_transportador(db, id_usuario)
     campesino = aliased(Usuario)
 
+    # Importante: usamos OUTER JOIN para no perder viajes antiguos importados
+    # desde XAMPP que pueden no tener todas las relaciones completas.
     query = (
         db.query(
             Viaje.id,
@@ -692,9 +694,9 @@ def listar_viajes_transportador(
             Vehiculo.modelo.label("vehiculo_modelo"),
             Vehiculo.tipo_vehiculo.label("vehiculo_tipo"),
         )
-        .join(Solicitud, Solicitud.id == Viaje.solicitud_id)
-        .outerjoin(SolicitudBovino, SolicitudBovino.solicitud_id == Solicitud.id)
-        .join(campesino, campesino.id_usuario == Solicitud.id_usuario)
+        .outerjoin(Solicitud, Solicitud.id == Viaje.solicitud_id)
+        .outerjoin(SolicitudBovino, SolicitudBovino.solicitud_id == Viaje.solicitud_id)
+        .outerjoin(campesino, campesino.id_usuario == Solicitud.id_usuario)
         .outerjoin(Vehiculo, Vehiculo.id_vehiculo == Viaje.id_vehiculo)
         .filter(Viaje.id_transportador == id_usuario)
     )
@@ -717,6 +719,9 @@ def listar_viajes_transportador(
             Solicitud.guia_movilidad_ruta,
             Solicitud.info_adicional_nombre,
             Solicitud.info_adicional_ruta,
+            Solicitud.distancia_km,
+            Solicitud.tarifa_minima,
+            Solicitud.valor_referencia_campesino,
             campesino.nombre,
             campesino.apellido,
             Vehiculo.id_vehiculo,
@@ -729,7 +734,10 @@ def listar_viajes_transportador(
         .all()
     )
 
-    resumen_bovinos = construir_resumen_bovinos_por_solicitud(db, [item.solicitud_id for item in resultados])
+    resumen_bovinos = construir_resumen_bovinos_por_solicitud(
+        db,
+        [item.solicitud_id for item in resultados if item.solicitud_id is not None],
+    )
 
     return [
         {
@@ -743,7 +751,7 @@ def listar_viajes_transportador(
             "estado": item.estado,
             "progreso": calcular_progreso(item.estado),
             "cantidad_bovinos": int(item.cantidad_bovinos or 0),
-            "campesino_nombre": f"{item.campesino_nombre} {item.campesino_apellido}".strip(),
+            "campesino_nombre": f"{item.campesino_nombre or ''} {item.campesino_apellido or ''}".strip(),
             "distancia_km": float(item.distancia_km or 0),
             "tarifa_minima": float(item.tarifa_minima or 0),
             "valor_referencia_campesino": float(item.valor_referencia_campesino or 0),
@@ -762,6 +770,42 @@ def listar_viajes_transportador(
         }
         for item in resultados
     ]
+
+
+@router.get("/{id_usuario}/dashboard")
+def dashboard_transportador(id_usuario: int, db: Session = Depends(get_db)):
+    ensure_operational_schema(db)
+    validar_transportador(db, id_usuario)
+
+    viajes = db.query(Viaje).filter(Viaje.id_transportador == id_usuario).all()
+    vehiculos = db.query(Vehiculo.id_vehiculo).filter(Vehiculo.id_usuario == id_usuario).count()
+
+    asignados = sum(1 for viaje in viajes if viaje.estado == "Asignado")
+    en_ruta = sum(1 for viaje in viajes if viaje.estado == "En ruta")
+    completados = sum(1 for viaje in viajes if viaje.estado == "Completado")
+
+    recientes = [
+        {
+            "id": viaje.id,
+            "id_viaje": viaje.id,
+            "solicitud_id": viaje.solicitud_id,
+            "origen": viaje.origen,
+            "destino": viaje.destino,
+            "estado": viaje.estado,
+            "fecha": viaje.fecha,
+            "id_vehiculo": viaje.id_vehiculo,
+        }
+        for viaje in sorted(viajes, key=lambda item: item.id or 0, reverse=True)[:5]
+    ]
+
+    return {
+        "viajes_asignados": asignados,
+        "en_ruta": en_ruta,
+        "completados": completados,
+        "vehiculos": vehiculos,
+        "total_viajes": len(viajes),
+        "recientes": recientes,
+    }
 
 
 @router.patch("/viajes/{id_viaje}/estado")

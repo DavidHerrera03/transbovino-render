@@ -53,3 +53,7 @@ export const actualizarEstadoViajeTransportador = async (idViaje, idTransportado
   invalidateRequestCache("admin");
   return data;
 };
+
+export const getDashboardTransportador = async (id_usuario) => {
+  return cachedJsonRequest(`${API}/transportador/${id_usuario}/dashboard`, {}, { ttl: 15000 });
+};
