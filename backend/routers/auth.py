@@ -148,3 +148,4 @@ def reset_password(datos: PasswordResetConfirm, db: Session = Depends(get_db)):
     db.commit()
 
     return {"mensaje": "Contraseña actualizada correctamente"}
+
