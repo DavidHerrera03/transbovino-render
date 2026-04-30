@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from database import Base, engine, SessionLocal
+from database import Base, engine, db_session
 
 # Importar modelos para que SQLAlchemy conozca todas las tablas
 from models import (
@@ -51,12 +51,8 @@ app.add_middleware(
 
 def crear_tablas():
     Base.metadata.create_all(bind=engine)
-
-    db = SessionLocal()
-    try:
+    with db_session() as db:
         ensure_operational_schema(db)
-    finally:
-        db.close()
 
 
 @app.get("/")
@@ -72,10 +68,10 @@ def setup_db():
 
 @app.get("/health-db")
 def health_db():
-    db = SessionLocal()
     try:
-        result = db.execute(text("SELECT COUNT(*) FROM usuarios"))
-        total_usuarios = result.scalar()
+        with db_session() as db:
+            result = db.execute(text("SELECT COUNT(*) FROM usuarios"))
+            total_usuarios = result.scalar()
 
         return {
             "backend": "ok",
@@ -89,8 +85,11 @@ def health_db():
             "database": "error",
             "detalle": str(e),
         }
-    finally:
-        db.close()
+
+
+@app.on_event("shutdown")
+def cerrar_pool_db():
+    engine.dispose()
 
 
 app.include_router(auth_router)
