@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import tempfile
 from datetime import timedelta
 from pathlib import Path
 from typing import Optional
@@ -17,6 +18,23 @@ DEFAULT_CREDENTIALS_DIR = BASE_DIR / "credentials"
 
 
 def _resolve_credentials_path() -> Optional[Path]:
+    # Opción para Render: JSON completo guardado como variable ambiental
+    credentials_json = os.getenv("FIREBASE_CREDENTIALS_JSON", "").strip()
+
+    if credentials_json:
+        try:
+            payload = json.loads(credentials_json)
+
+            temp_path = Path(tempfile.gettempdir()) / "firebase-service-account.json"
+            temp_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            return temp_path
+        except Exception as exc:
+            raise RuntimeError(
+                "La variable FIREBASE_CREDENTIALS_JSON no contiene un JSON válido"
+            ) from exc
+
+    # Opción local: ruta a archivo JSON
     candidates = [
         os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "").strip(),
         os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip(),
@@ -31,6 +49,7 @@ def _resolve_credentials_path() -> Optional[Path]:
         if path.exists():
             return path
 
+    # Opción local: buscar dentro de backend/credentials/
     if DEFAULT_CREDENTIALS_DIR.exists():
         json_files = sorted(DEFAULT_CREDENTIALS_DIR.glob("*.json"))
         if json_files:
@@ -75,8 +94,8 @@ def _get_client_and_bucket():
     credentials_path = _resolve_credentials_path()
     if not credentials_path:
         raise RuntimeError(
-            "No se encontró el archivo de credenciales de Firebase. "
-            "Guárdalo en backend/credentials/ o configura FIREBASE_SERVICE_ACCOUNT_PATH."
+            "No se encontró la credencial de Firebase. "
+            "Configura FIREBASE_CREDENTIALS_JSON en Render o guarda el JSON en backend/credentials/."
         )
 
     bucket_name = _resolve_bucket_name(credentials_path)
