@@ -15,7 +15,7 @@ from schemas.usuario import (
     PasswordResetRequest,
     RegisterRequest,
 )
-from utils.email_service import send_reset_email
+from utils.email_service import get_email_provider_status, send_reset_email
 from utils.env_loader import load_project_env
 from utils.security import hash_password, needs_rehash, verify_password
 
@@ -26,6 +26,12 @@ router = APIRouter(prefix="/auth", tags=["Autenticacion"])
 
 def _hash_reset_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+@router.get("/email-config")
+def email_config():
+    """Diagnostico seguro para confirmar que Render esta usando Resend."""
+    return get_email_provider_status()
 
 
 @router.post("/register")
