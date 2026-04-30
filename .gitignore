@@ -8,7 +8,7 @@ venv/
 .env
 backend/.env
 backend/credentials/
-*.json
+backend/credentials/*.json
 
 # Node / React
 node_modules/
@@ -19,4 +19,6 @@ frontend/dist/
 *.db
 backend/*.db
 backend/transbovino.db
+
+# Archivos subidos localmente
 backend/uploads/
