@@ -49,10 +49,10 @@ app.add_middleware(
 )
 
 
-def crear_tablas():
+def crear_tablas(force: bool = False):
     Base.metadata.create_all(bind=engine)
     with db_session() as db:
-        ensure_operational_schema(db)
+        ensure_operational_schema(db, force=force)
 
 
 @app.get("/")
@@ -62,7 +62,7 @@ def home():
 
 @app.get("/setup-db")
 def setup_db():
-    crear_tablas()
+    crear_tablas(force=True)
     return {"mensaje": "Tablas creadas correctamente"}
 
 

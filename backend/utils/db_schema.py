@@ -1,3 +1,5 @@
+from threading import Lock
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -257,6 +259,15 @@ COLUMN_DEFINITIONS = {
     },
 }
 
+_SCHEMA_LOCK = Lock()
+_SCHEMA_READY = False
+
+def reset_schema_cache():
+    """Permite reintentar la validación del esquema si alguna ejecución falla."""
+    global _SCHEMA_READY
+    with _SCHEMA_LOCK:
+        _SCHEMA_READY = False
+
 INDEX_STATEMENTS = [
     "CREATE INDEX idx_solicitudes_estado ON solicitudes (estado)",
     "CREATE INDEX idx_solicitudes_usuario_estado ON solicitudes (id_usuario, estado)",
@@ -314,33 +325,59 @@ def index_exists(db: Session, table_name: str, index_name: str) -> bool:
     return result is not None
 
 
-def ensure_operational_schema(db: Session):
-    for statement in TABLE_STATEMENTS:
-        db.execute(text(statement))
 
-    for table_name, columns in COLUMN_DEFINITIONS.items():
-        if not table_exists(db, table_name):
-            continue
-        for column_name, definition in columns.items():
-            if not column_exists(db, table_name, column_name):
-                db.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}"))
+def ensure_operational_schema(db: Session, *, force: bool = False):
+    """Valida y ajusta el esquema operativo una sola vez por proceso.
 
-    if column_exists(db, 'finca', 'direccion'):
+    Antes se ejecutaba en muchos endpoints. Eso hacía varias consultas a
+    information_schema, CREATE TABLE, CREATE INDEX y COMMIT por cada petición,
+    por ejemplo al abrir /solicitudes/usuario/{id_usuario}. En Render, varias
+    peticiones seguidas podían ocupar todas las conexiones del QueuePool.
+
+    Con esta protección, la verificación se hace al iniciar o en la primera
+    petición, y las demás peticiones retornan sin tocar la base de datos.
+    """
+    global _SCHEMA_READY
+
+    if _SCHEMA_READY and not force:
+        return
+
+    with _SCHEMA_LOCK:
+        if _SCHEMA_READY and not force:
+            return
+
         try:
-            db.execute(text('ALTER TABLE finca DROP COLUMN direccion'))
+            for statement in TABLE_STATEMENTS:
+                db.execute(text(statement))
+
+            for table_name, columns in COLUMN_DEFINITIONS.items():
+                if not table_exists(db, table_name):
+                    continue
+                for column_name, definition in columns.items():
+                    if not column_exists(db, table_name, column_name):
+                        db.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}"))
+
+            if column_exists(db, 'finca', 'direccion'):
+                try:
+                    db.execute(text('ALTER TABLE finca DROP COLUMN direccion'))
+                except Exception:
+                    db.rollback()
+
+            try:
+                db.execute(text("UPDATE finca SET municipio = 'Zipaquira' WHERE municipio IS NULL OR municipio = ''"))
+            except Exception:
+                db.rollback()
+
+            for statement in INDEX_STATEMENTS:
+                tokens = statement.split()
+                index_name = tokens[2]
+                table_name = tokens[4]
+                if not index_exists(db, table_name, index_name):
+                    db.execute(text(statement))
+
+            db.commit()
+            _SCHEMA_READY = True
         except Exception:
             db.rollback()
-
-    try:
-        db.execute(text("UPDATE finca SET municipio = 'Zipaquira' WHERE municipio IS NULL OR municipio = ''"))
-    except Exception:
-        db.rollback()
-
-    for statement in INDEX_STATEMENTS:
-        tokens = statement.split()
-        index_name = tokens[2]
-        table_name = tokens[4]
-        if not index_exists(db, table_name, index_name):
-            db.execute(text(statement))
-
-    db.commit()
+            _SCHEMA_READY = False
+            raise
