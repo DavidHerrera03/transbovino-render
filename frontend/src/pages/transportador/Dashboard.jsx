@@ -3,84 +3,67 @@ import TransportadorLayout from "./TransportadorLayout";
 import solicitudesIcon from "../../assets/icons/Solicitudes.png";
 import viajesIcon from "../../assets/icons/Viajes.png";
 import vehiculosIcon from "../../assets/icons/Vehiculos.png";
-import { getDashboardTransportador, getMisViajesTransportador } from "../../services/transportadorService";
+import { getMisViajesTransportador } from "../../services/transportadorService";
 import { getVehiculos } from "../../services/vehiculoService";
+
+function normalizarEstado(estado = "") {
+  return String(estado).trim().toLowerCase();
+}
 
 function Dashboard({ usuario, salir, setVistaInterna, vistaInterna }) {
   const [loading, setLoading] = useState(false);
   const [viajes, setViajes] = useState([]);
   const [vehiculos, setVehiculos] = useState([]);
-  const [resumenBackend, setResumenBackend] = useState(null);
 
   useEffect(() => {
     const cargar = async () => {
       if (!usuario?.id_usuario) return;
+
       try {
         setLoading(true);
 
-        // Endpoint optimizado: una sola consulta al backend para el resumen.
-        const dashboard = await getDashboardTransportador(usuario.id_usuario);
-        setResumenBackend(dashboard || null);
-        setViajes(Array.isArray(dashboard?.recientes) ? dashboard.recientes : []);
+        // Usamos el mismo endpoint de "Mis viajes" porque ya está comprobado que funciona.
+        // Así el dashboard se alimenta de los mismos datos reales del transportador.
+        const [dataViajes, dataVehiculos] = await Promise.all([
+          getMisViajesTransportador(usuario.id_usuario, { force: true }),
+          getVehiculos(usuario.id_usuario).catch(() => []),
+        ]);
 
-        // Mantengo esta consulta como respaldo para mostrar cantidad real de vehículos
-        // si el endpoint optimizado no trae el dato por alguna razón.
-        const dataVehiculos = await getVehiculos(usuario.id_usuario).catch(() => []);
+        setViajes(Array.isArray(dataViajes) ? dataViajes : []);
         setVehiculos(Array.isArray(dataVehiculos) ? dataVehiculos : []);
       } catch (error) {
         console.error("Error cargando dashboard transportador:", error);
-
-        // Respaldo: comportamiento anterior.
-        try {
-          const [dataViajes, dataVehiculos] = await Promise.all([
-            getMisViajesTransportador(usuario.id_usuario),
-            getVehiculos(usuario.id_usuario),
-          ]);
-          setViajes(Array.isArray(dataViajes) ? dataViajes : []);
-          setVehiculos(Array.isArray(dataVehiculos) ? dataVehiculos : []);
-          setResumenBackend(null);
-        } catch (fallbackError) {
-          console.error("Error cargando fallback dashboard transportador:", fallbackError);
-          setViajes([]);
-          setVehiculos([]);
-          setResumenBackend(null);
-        }
+        setViajes([]);
+        setVehiculos([]);
       } finally {
         setLoading(false);
       }
     };
 
     cargar();
-  }, [usuario]);
+  }, [usuario?.id_usuario]);
 
   const resumen = useMemo(() => {
-    if (resumenBackend) {
-      return {
-        asignados: Number(resumenBackend.viajes_asignados || 0),
-        enRuta: Number(resumenBackend.en_ruta || 0),
-        completadosMes: Number(resumenBackend.completados || 0),
-        vehiculos: Number(resumenBackend.vehiculos ?? vehiculos.length ?? 0),
-      };
-    }
+    const totalViajes = viajes.length;
+    const enRuta = viajes.filter((item) => normalizarEstado(item.estado) === "en ruta").length;
 
-    const asignados = viajes.filter((item) => item.estado === "Asignado").length;
-    const enRuta = viajes.filter((item) => item.estado === "En ruta").length;
     const ahora = new Date();
     const mes = ahora.getMonth();
     const anio = ahora.getFullYear();
+
     const completadosMes = viajes.filter((item) => {
-      if (item.estado !== "Completado" || !item.fecha) return false;
+      if (normalizarEstado(item.estado) !== "completado" || !item.fecha) return false;
       const fecha = new Date(`${item.fecha}T00:00:00`);
       return !Number.isNaN(fecha.getTime()) && fecha.getMonth() === mes && fecha.getFullYear() === anio;
     }).length;
 
     return {
-      asignados,
+      asignados: totalViajes,
       enRuta,
       completadosMes,
       vehiculos: vehiculos.length,
     };
-  }, [viajes, vehiculos, resumenBackend]);
+  }, [viajes, vehiculos]);
 
   const cards = [
     {
@@ -88,7 +71,7 @@ function Dashboard({ usuario, salir, setVistaInterna, vistaInterna }) {
       value: resumen.asignados,
       detail: "Ir a viajes asignados",
       icon: solicitudesIcon,
-      onClick: () => setVistaInterna("misViajes", { viajesEstado: "Asignado" }),
+      onClick: () => setVistaInterna("misViajes"),
     },
     {
       title: "En ruta",
