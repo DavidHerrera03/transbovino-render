@@ -90,17 +90,17 @@ def _send_with_resend(to_email: str, subject: str, html: str) -> None:
         "html": html,
     }
 
-    request = urllib.request.Request(
-        RESEND_ENDPOINT,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "TransBovino/1.0 (Render; Python urllib)",
-        },
-        method="POST",
-    )
+request = urllib.request.Request(
+    "https://api.resend.com/emails",
+    data=data,
+    method="POST",
+    headers={
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "TransBovino/1.0 (Render; FastAPI; Python)",
+    },
+)
 
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
