@@ -4,7 +4,6 @@ import secrets
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -30,7 +29,6 @@ def _hash_reset_token(token: str) -> str:
 
 @router.get("/email-config")
 def email_config():
-    """Diagnostico seguro para confirmar que Render esta usando Resend."""
     return get_email_provider_status()
 
 
@@ -111,7 +109,7 @@ def forgot_password(datos: PasswordResetRequest, db: Session = Depends(get_db)):
     db.add(usuario_db)
     db.commit()
 
-    reset_base_url = os.getenv('RESET_BASE_URL') or os.getenv('FRONTEND_URL', 'http://localhost:5173')
+    reset_base_url = os.getenv("RESET_BASE_URL") or os.getenv("FRONTEND_URL", "http://localhost:5173")
     reset_link = f"{reset_base_url}?vista=restablecer&token={token}"
 
     try:
@@ -148,4 +146,3 @@ def reset_password(datos: PasswordResetConfirm, db: Session = Depends(get_db)):
     db.commit()
 
     return {"mensaje": "Contraseña actualizada correctamente"}
-
