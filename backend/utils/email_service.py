@@ -12,6 +12,7 @@ from utils.env_loader import load_project_env
 
 load_project_env()
 
+EMAIL_SERVICE_VERSION = "email_service_resend_v4_user_agent"
 RESEND_ENDPOINT = "https://api.resend.com/emails"
 DEFAULT_EMAIL_FROM = "TransBovino <onboarding@resend.dev>"
 
