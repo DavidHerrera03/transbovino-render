@@ -1,7 +1,5 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-// Base del backend sin slash final. IMPORTANTE: no agregar /admin aqui,
-// porque las rutas de autenticacion viven en /auth/*.
 const API = API_URL.replace(/\/$/, "");
 
 function obtenerMensajeError(data, fallback) {
@@ -11,25 +9,13 @@ function obtenerMensajeError(data, fallback) {
   if (typeof data.mensaje === "string") return data.mensaje;
 
   if (Array.isArray(data.detail)) {
-    return (
-      data.detail
-        .map((item) => item?.msg || item?.message || String(item))
-        .filter(Boolean)
-        .join(" ") || fallback
-    );
+    return data.detail
+      .map((item) => item?.msg || item?.message || String(item))
+      .filter(Boolean)
+      .join(" ") || fallback;
   }
 
   return fallback;
-}
-
-async function leerRespuesta(response, fallback) {
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(obtenerMensajeError(data, fallback));
-  }
-
-  return data;
 }
 
 // LOGIN
@@ -42,7 +28,13 @@ export async function loginUser(datos) {
     body: JSON.stringify(datos),
   });
 
-  return leerRespuesta(response, "Error al iniciar sesión");
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(obtenerMensajeError(data, "Error al iniciar sesión"));
+  }
+
+  return data;
 }
 
 // REGISTRO
@@ -55,10 +47,15 @@ export async function registerUser(datos) {
     body: JSON.stringify(datos),
   });
 
-  return leerRespuesta(response, "Error en el registro");
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(obtenerMensajeError(data, "Error en el registro"));
+  }
+
+  return data;
 }
 
-// RECUPERAR CONTRASEÑA
 export async function solicitarRecuperacion(correo) {
   const response = await fetch(`${API}/auth/forgot-password`, {
     method: "POST",
@@ -68,10 +65,15 @@ export async function solicitarRecuperacion(correo) {
     body: JSON.stringify({ correo }),
   });
 
-  return leerRespuesta(response, "No se pudo enviar el correo de recuperación");
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(obtenerMensajeError(data, "No se pudo enviar el correo de recuperación"));
+  }
+
+  return data;
 }
 
-// RESTABLECER CONTRASEÑA
 export async function restablecerPassword({ token, password }) {
   const response = await fetch(`${API}/auth/reset-password`, {
     method: "POST",
@@ -81,13 +83,17 @@ export async function restablecerPassword({ token, password }) {
     body: JSON.stringify({ token, password }),
   });
 
-  return leerRespuesta(response, "No se pudo restablecer la contraseña");
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(obtenerMensajeError(data, "No se pudo restablecer la contraseña"));
+  }
+
+  return data;
 }
 
-// Funciones auxiliares antiguas. Se dejan usando la base correcta por compatibilidad
-// si alguna pantalla todavia las importa desde este archivo.
 export const crearBovino = async (data) => {
-  const res = await fetch(`${API}/admin/bovinos/`, {
+  const res = await fetch(`${API}/bovinos/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -95,15 +101,15 @@ export const crearBovino = async (data) => {
     body: JSON.stringify(data),
   });
 
-  return leerRespuesta(res, "No se pudo crear el bovino");
+  return res.json();
 };
 
 export const obtenerBovinos = async () => {
-  const res = await fetch(`${API}/admin/bovinos/`);
-  return leerRespuesta(res, "No se pudieron obtener los bovinos");
+  const res = await fetch(`${API}/bovinos/`);
+  return res.json();
 };
 
 export const obtenerUsuario = async (id) => {
   const res = await fetch(`${API}/usuarios/${id}`);
-  return leerRespuesta(res, "No se pudo obtener el usuario");
+  return res.json();
 };

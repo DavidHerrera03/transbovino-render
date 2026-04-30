@@ -5,6 +5,15 @@ from utils.tarifas import VEREDAS_ZIPAQUIRA as VEREDAS_PERMITIDAS
 
 TABLE_STATEMENTS = [
     """
+    CREATE TABLE IF NOT EXISTS vereda_catalogo (
+        id_vereda INTEGER PRIMARY KEY AUTO_INCREMENT,
+        nombre VARCHAR(150) NOT NULL,
+        municipio VARCHAR(100) NOT NULL DEFAULT 'Zipaquira',
+        activa TINYINT(1) NOT NULL DEFAULT 1,
+        UNIQUE KEY uq_vereda_catalogo_nombre (nombre)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    """,
+    """
     CREATE TABLE IF NOT EXISTS finca (
         id_finca INTEGER PRIMARY KEY AUTO_INCREMENT,
         municipio VARCHAR(100) NOT NULL DEFAULT 'Zipaquira',
@@ -213,6 +222,7 @@ COLUMN_DEFINITIONS = {
         "distancia_km": "FLOAT NULL",
         "tarifa_minima": "FLOAT NULL",
         "valor_referencia_campesino": "FLOAT NULL",
+        "valor_acordado": "DECIMAL(12,2) NULL",
         "created_at": "DATETIME NULL DEFAULT CURRENT_TIMESTAMP",
         "updated_at": "DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
     },

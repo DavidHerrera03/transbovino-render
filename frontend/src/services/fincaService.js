@@ -2,7 +2,7 @@ import { cachedJsonRequest, invalidateRequestCache } from "../utils/requestCache
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-const API = API_URL;
+const API = API_URL.replace(/\/$/, "");
 
 async function manejarRespuesta(res, mensaje) {
   const data = await res.json().catch(() => ({}));

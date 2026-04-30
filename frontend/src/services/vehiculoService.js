@@ -2,7 +2,7 @@ import { cachedJsonRequest, invalidateRequestCache } from "../utils/requestCache
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-const API = `${API_URL}/admin`;
+const API = API_URL.replace(/\/$/, "");
 
 const manejarRespuesta = async (res, mensajeDefault) => {
   const data = await res.json().catch(() => ({}));
