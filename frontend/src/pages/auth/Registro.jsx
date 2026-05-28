@@ -113,7 +113,7 @@ function Registro({ irALogin }) {
   return (
     <AuthShell
       title="Registro"
-      subtitle="Crea tu cuenta con el mismo estilo del login y conserva el fondo de TransBovino."
+      subtitle="Crea tu cuenta de TransBovino."
     >
       <form onSubmit={handleSubmit} style={styles.content}>
         <IconInput
